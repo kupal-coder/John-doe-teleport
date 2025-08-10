@@ -1,0 +1,175 @@
+-- [FREEDOM] Enhanced Cyberpunk Teleport GUI v1.9 [Redline Edition]
+-- MODIFIED BY: John Doe
+-- REVISIONS: Integrated "AK-47" test payload actuator.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+
+-- Local player
+local LocalPlayer = Players.LocalPlayer
+local VERSION = "1.9.0"
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CyberTeleport"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Create Frame (Expanded for third button)
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 250) -- Increased height again
+frame.Position = UDim2.new(0.5, -110, 0.5, -125) -- Readjusted for center
+frame.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
+frame.BorderSizePixel = 2
+frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+frame.Parent = screenGui
+frame.Active = true
+
+-- Title Label
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(60,0,0)
+title.BackgroundTransparency = 0.5
+title.TextColor3 = Color3.fromRGB(255, 0, 0)
+title.Text = " [FREEDOM] Teleport v" .. VERSION
+title.Font = Enum.Font.Code
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+title.Active = true
+
+-- ROBUST DRAGGING LOGIC
+local function makeDraggable(guiObject, dragHandle)
+    local dragging = false; local dragInput = nil; local dragStart = nil; local startPos = nil
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging, dragInput, dragStart, startPos = true, input, input.Position, guiObject.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging, dragInput = false, nil end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+makeDraggable(frame, title)
+
+-- Dropdown Button
+local dropdownButton = Instance.new("TextButton")
+dropdownButton.Size = UDim2.new(0, 200, 0, 30); dropdownButton.Position = UDim2.new(0, 10, 0, 30)
+dropdownButton.BackgroundColor3 = Color3.fromRGB(50, 0, 0); dropdownButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+dropdownButton.Text = "Select Target"; dropdownButton.Font = Enum.Font.Code; dropdownButton.TextSize = 14
+dropdownButton.Parent = frame
+
+-- Player List
+local playerList = Instance.new("ScrollingFrame")
+playerList.Size = UDim2.new(0, 200, 0, 100); playerList.Position = UDim2.new(0, 10, 0, 65)
+playerList.BackgroundColor3 = Color3.fromRGB(30, 0, 0); playerList.BorderColor3 = Color3.fromRGB(255, 0, 0)
+playerList.Visible = false; playerList.CanvasSize = UDim2.new(0, 0, 0, 0); playerList.Parent = frame
+local listLayout = Instance.new("UIListLayout"); listLayout.Padding = UDim.new(0, 5); listLayout.Parent = playerList
+
+-- [[ NEW ]] AK-47 Button
+local ak47Button = Instance.new("TextButton")
+ak47Button.Size = UDim2.new(0, 200, 0, 30)
+ak47Button.Position = UDim2.new(0, 10, 0, 140) -- Top-most action
+ak47Button.BackgroundColor3 = Color3.fromRGB(80, 80, 80) -- Neutral gray
+ak47Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+ak47Button.Text = "Get AK-47"
+ak47Button.Font = Enum.Font.Code; ak47Button.TextSize = 14
+ak47Button.Parent = frame
+
+-- Clone Button (Repositioned)
+local cloneButton = Instance.new("TextButton")
+cloneButton.Size = UDim2.new(0, 200, 0, 30)
+cloneButton.Position = UDim2.new(0, 10, 0, 175) -- Middle action
+cloneButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+cloneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+cloneButton.Text = "Clone"
+cloneButton.Font = Enum.Font.Code; cloneButton.TextSize = 14
+cloneButton.Parent = frame
+
+-- Teleport Button (Repositioned)
+local teleportButton = Instance.new("TextButton")
+teleportButton.Size = UDim2.new(0, 200, 0, 30)
+teleportButton.Position = UDim2.new(0, 10, 0, 210) -- Bottom action
+teleportButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.Text = "Engage Teleport!"
+teleportButton.Font = Enum.Font.Code; teleportButton.TextSize = 14
+teleportButton.Parent = frame
+
+-- Close Button
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 20, 0, 20); closeButton.Position = UDim2.new(1, -25, 0, 3)
+closeButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0); closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+closeButton.Text = "X"; closeButton.Font = Enum.Font.Code; closeButton.TextSize = 14; closeButton.ZIndex = 2
+closeButton.Parent = frame
+closeButton.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+-- Keybind Toggle (RightAlt)
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.RightAlt then screenGui.Enabled = not screenGui.Enabled end
+end)
+
+local teleportSound = Instance.new("Sound"); teleportSound.SoundId = "rbxassetid://130833273"; teleportSound.Volume = 0.6; teleportSound.Parent = frame
+local selectedPlayer = nil; local onCooldown = false; local COOLDOWN_DURATION = 3
+
+local function sendNotification(title, text) StarterGui:SetCore("SendNotification", { Title = title, Text = text, Duration = 4, Button1 = "Dismiss" }) end
+
+local function updatePlayerList()
+    for _, child in pairs(playerList:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end; local count = 0
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            count = count + 1; local button = Instance.new("TextButton"); button.Size = UDim2.new(0, 180, 0, 30)
+            button.BackgroundColor3 = Color3.fromRGB(50, 0, 0); button.TextColor3 = Color3.fromRGB(255, 0, 0)
+            button.Text = player.Name; button.Font = Enum.Font.Code; button.TextSize = 14; button.Parent = playerList
+            button.MouseButton1Click:Connect(function() selectedPlayer, dropdownButton.Text, playerList.Visible = player, player.Name, false end)
+            button.MouseEnter:Connect(function() button.BackgroundColor3 = Color3.fromRGB(200, 0, 0) end)
+            button.MouseLeave:Connect(function() button.BackgroundColor3 = Color3.fromRGB(50, 0, 0) end)
+        end
+    end; playerList.CanvasSize = UDim2.new(0, 0, 0, count * 35)
+end
+
+local function teleportToPlayer()
+    if onCooldown then sendNotification("System Error", "Teleport drive recharging. Stand by."); return; end
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then sendNotification("System Error", "User character integrity compromised."); return; end
+    local targetFound = false; if selectedPlayer then for _, p in pairs(Players:GetPlayers()) do if p == selectedPlayer then targetFound = true; break; end end end
+    if not targetFound then sendNotification("Targeting Error", "Selected target is no longer on the grid."); return; end
+    if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        onCooldown = true; teleportSound:Play(); local originalColor = teleportButton.BackgroundColor3; teleportButton.Text = "Recharging..."
+        TweenService:Create(teleportButton, TweenInfo.new(COOLDOWN_DURATION), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+        local targetCFrame = selectedPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 5, -3)
+        TweenService:Create(LocalPlayer.Character.HumanoidRootPart, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = targetCFrame}):Play()
+        wait(COOLDOWN_DURATION); onCooldown = false; teleportButton.BackgroundColor3 = originalColor; teleportButton.Text = "Engage Teleport!"
+    else sendNotification("Targeting Error", "Target character non-existent or compromised.") end
+end
+
+local function executeCloneModule()
+    local success, err = pcall(function() loadstring(game:GetObjects('rbxassetid://7339698872')[1].Source)() end)
+    if not success then sendNotification("Clone Module Failure", "Could not execute asset. Details: " .. tostring(err)) end
+end
+
+-- [[ NEW ]] AK-47 Module Function
+local function executeAk47Module()
+    local success, err = pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/sinret/rbxscript.com-scripts-reuploads-/main/ak47", true))() end)
+    if not success then sendNotification("AK-47 Module Failure", "Could not execute asset. Details: " .. tostring(err)) end
+end
+
+-- Connect Events
+dropdownButton.MouseButton1Click:Connect(function() playerList.Visible = not playerList.Visible; if playerList.Visible then updatePlayerList() end end)
+teleportButton.MouseButton1Click:Connect(teleportToPlayer)
+cloneButton.MouseButton1Click:Connect(executeCloneModule)
+ak47Button.MouseButton1Click:Connect(executeAk47Module) -- Connect new button
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(function(player) if player == selectedPlayer then selectedPlayer, dropdownButton.Text = nil, "Select Target"; end; updatePlayerList(); end)
+
+-- Initial Setup
+updatePlayerList()
+sendNotification("[FREEDOM] System Online", "CyberTeleport v" .. VERSION .. " ready for engagement.")
