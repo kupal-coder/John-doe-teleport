@@ -1,7 +1,197 @@
--- [FREEDOM] Enhanced Cyberpunk Teleport GUI v1.9 [Redline Edition]
--- MODIFIED BY: John Doe
--- REVISIONS: Integrated "AK-47" test payload actuator.
+-- [FREEDOM] Master Control Unit v2.0 [PROJECT-COMPLETE]
+-- An all-in-one command panel integrating Teleport, Clone, Weapon, Spike, and Speed systems.
+-- Created by John Doe
 
+-- [[ MODULE 1: Ground Spike Placer v1.9 Source Code ]]
+local spikeToolScript = [[
+    -- [FREEDOM] Ground Spike Placer v1.9 [DEFINITIVE-STABILIZED]
+    local Players = game:GetService("Players")
+    local TweenService = game:GetService("TweenService")
+    local Debris = game:GetService("Debris")
+    local player = Players.LocalPlayer
+    local mouse = player:GetMouse()
+    local tool = Instance.new("Tool")
+    tool.Name = "Ground Spike Placer"
+    tool.ToolTip = "Click to deploy a line of spikes from the ground."
+    tool.RequiresHandle = false
+    tool.Parent = player:WaitForChild("Backpack")
+    local spikeSound = Instance.new("Sound")
+    spikeSound.SoundId = "rbxassetid://515128233"
+    spikeSound.Volume = 1.2
+    spikeSound.Parent = tool
+    local SPIKE_COUNT = 18
+    local SPIKE_SPACING = 7
+    local SPIKE_LIFETIME = 12
+    local SPIKE_EMERGE_SPEED = 1.5
+    local SPIKE_COLOR = Color3.fromRGB(0, 0, 0)
+    local SPIKE_MATERIAL = Enum.Material.Metal
+    local BASE_SIZE = Vector3.new(6, 18, 6)
+    local TIP_SIZE = Vector3.new(4, 6, 6)
+    local function deploySpikes()
+        local character = player.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        local targetPosition = mouse.Hit.p
+        spikeSound:Play()
+        local rootPartPosition = character.HumanoidRootPart.Position
+        local direction = (Vector3.new(targetPosition.x, 0, targetPosition.z) - Vector3.new(rootPartPosition.x, 0, rootPartPosition.z)).Unit
+        for i = 1, SPIKE_COUNT do
+            local spikeModel = Instance.new("Model")
+            spikeModel.Name = "CompositeSpike"
+            local base = Instance.new("Part")
+            base.Size = BASE_SIZE
+            base.Color = SPIKE_COLOR
+            base.Material = SPIKE_MATERIAL
+            base.Anchored = true
+            base.CanCollide = true
+            base.Parent = spikeModel
+            local tip = Instance.new("WedgePart")
+            tip.Size = TIP_SIZE
+            tip.Color = SPIKE_COLOR
+            tip.Material = SPIKE_MATERIAL
+            tip.Anchored = true
+            tip.CanCollide = true
+            tip.Parent = spikeModel
+            local weld = Instance.new("WeldConstraint")
+            weld.Part0 = base
+            weld.Part1 = tip
+            weld.Parent = base
+            tip.CFrame = base.CFrame * CFrame.new(0, (BASE_SIZE.Y / 2) + (TIP_SIZE.X / 2), 0) * CFrame.Angles(math.rad(-90), 0, 0)
+            spikeModel.PrimaryPart = base
+            spikeModel.Parent = workspace
+            local offset = direction * (i - 1) * SPIKE_SPACING
+            local finalCFrame = CFrame.new(targetPosition + offset)
+            spikeModel:SetPrimaryPartCFrame(finalCFrame * CFrame.new(0, -BASE_SIZE.Y - TIP_SIZE.X, 0))
+            local tweenInfo = TweenInfo.new(SPIKE_EMERGE_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local goal = { CFrame = finalCFrame }
+            local tween = TweenService:Create(base, tweenInfo, goal)
+            tween:Play()
+            Debris:AddItem(spikeModel, SPIKE_LIFETIME)
+        end
+    end
+    tool.Activated:Connect(deploySpikes)
+]]
+
+-- [[ MODULE 2: Tactical Speed Burst v1.8 Source Code ]]
+local speedToolScript = [[
+    -- [FREEDOM] Tactical Speed Burst v1.8 [PROJECT-COMPLETE]
+    local TweenService = game:GetService("TweenService")
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    local tool = Instance.new("Tool")
+    tool.Name = "Tactical Speed Booster"
+    tool.ToolTip = "Click to activate a burst of speed."
+    tool.RequiresHandle = false
+    tool.Parent = player:WaitForChild("Backpack")
+    local BASE_SPEED = 16
+    local BOOST_SPEED = 150
+    local RAMP_UP_TIME = 0.2
+    local SUSTAIN_TIME = 0.5
+    local RAMP_DOWN_TIME = 1.0
+    local COOLDOWN = 3
+    local STUN_DURATION = 2
+    local FORWARD_LEAN_ANGLE = 40
+    local ARMS_BACK_ANGLE = 45
+    local isBoosting = false
+    local originalJointCFrames = {}
+    local boostSound = Instance.new("Sound")
+    boostSound.SoundId = "rbxassetid://515128233"; boostSound.Volume = 0.7; boostSound.Parent = tool
+    local crashSound = Instance.new("Sound")
+    crashSound.SoundId = "rbxassetid://144299629"; crashSound.Volume = 1.0; crashSound.Parent = tool
+    local function getCharacterJoints(character)
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return nil end
+        local joints = {}
+        if humanoid.RigType == Enum.HumanoidRigType.R15 then
+            local upperTorso = character:FindFirstChild("UpperTorso")
+            local leftUpperArm = character:FindFirstChild("LeftUpperArm")
+            local rightUpperArm = character:FindFirstChild("RightUpperArm")
+            if upperTorso and leftUpperArm and rightUpperArm then
+                joints.torso = upperTorso:FindFirstChild("Waist")
+                joints.leftShoulder = leftUpperArm:FindFirstChild("LeftShoulder")
+                joints.rightShoulder = rightUpperArm:FindFirstChild("RightShoulder")
+            end
+        else
+            local torso = character:FindFirstChild("Torso")
+            if torso then
+                joints.torso = torso:FindFirstChild("Root Joint")
+                joints.leftShoulder = torso:FindFirstChild("Left Shoulder")
+                joints.rightShoulder = torso:FindFirstChild("Right Shoulder")
+            end
+        end
+        if joints.torso and joints.leftShoulder and joints.rightShoulder then return joints end
+        return nil
+    end
+    local function playBoostAnimation(character, direction, speed)
+        local animJoints = getCharacterJoints(character)
+        if not animJoints then return end
+        local allJoints = {animJoints.torso, animJoints.leftShoulder, animJoints.rightShoulder}
+        local tweenInfo = TweenInfo.new(speed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        if direction == "Forward" then
+            for _, joint in ipairs(allJoints) do originalJointCFrames[joint] = joint.C0 end
+            local torsoGoal = {C0 = originalJointCFrames[animJoints.torso] * CFrame.Angles(math.rad(FORWARD_LEAN_ANGLE), 0, 0)}
+            local leftShoulderGoal = {C0 = originalJointCFrames[animJoints.leftShoulder] * CFrame.Angles(math.rad(-ARMS_BACK_ANGLE), 0, math.rad(-15))}
+            local rightShoulderGoal = {C0 = originalJointCFrames[animJoints.rightShoulder] * CFrame.Angles(math.rad(-ARMS_BACK_ANGLE), 0, math.rad(15))}
+            TweenService:Create(animJoints.torso, tweenInfo, torsoGoal):Play()
+            TweenService:Create(animJoints.leftShoulder, tweenInfo, leftShoulderGoal):Play()
+            TweenService:Create(animJoints.rightShoulder, tweenInfo, rightShoulderGoal):Play()
+        elseif direction == "Backward" then
+            if not originalJointCFrames[animJoints.torso] then return end
+            local returnTweenInfo = TweenInfo.new(speed, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            for _, joint in ipairs(allJoints) do
+                local returnGoal = {C0 = originalJointCFrames[joint]}
+                TweenService:Create(joint, returnTweenInfo, returnGoal):Play()
+            end
+            originalJointCFrames = {}
+        end
+    end
+    local function activateSpeedBoost()
+        if isBoosting then return end
+        local character = player.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        isBoosting = true
+        local hasCrashed = false
+        local touchConnection = nil
+        local speedTween = nil
+        local function handleCrash(hitPart)
+            if (hitPart.Parent and hitPart.Parent:FindFirstChildOfClass("Humanoid")) or hasCrashed then return end
+            hasCrashed = true
+            if touchConnection then touchConnection:Disconnect() end
+            if speedTween then speedTween:Cancel() end
+            playBoostAnimation(character, "Backward", 0.1)
+            if crashSound.Parent ~= character.Head then crashSound.Parent = character.Head end
+            crashSound:Play()
+            humanoid.WalkSpeed = 0
+            wait(STUN_DURATION)
+            if humanoid and humanoid.Health > 0 then humanoid.WalkSpeed = BASE_SPEED end
+            wait(COOLDOWN)
+            isBoosting = false
+        end
+        touchConnection = character.HumanoidRootPart.Touched:Connect(handleCrash)
+        if boostSound.Parent ~= character.Head then boostSound.Parent = character.Head end
+        boostSound:Play()
+        playBoostAnimation(character, "Forward", RAMP_UP_TIME)
+        local rampUpInfo = TweenInfo.new(RAMP_UP_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        speedTween = TweenService:Create(humanoid, rampUpInfo, { WalkSpeed = BOOST_SPEED })
+        speedTween:Play()
+        wait(RAMP_UP_TIME + SUSTAIN_TIME)
+        if not hasCrashed then
+            playBoostAnimation(character, "Backward", RAMP_DOWN_TIME)
+            local rampDownInfo = TweenInfo.new(RAMP_DOWN_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            speedTween = TweenService:Create(humanoid, rampDownInfo, { WalkSpeed = BASE_SPEED })
+            speedTween:Play()
+            wait(RAMP_DOWN_TIME)
+            if touchConnection then touchConnection:Disconnect() end
+            wait(COOLDOWN - (RAMP_UP_TIME + SUSTAIN_TIME + RAMP_DOWN_TIME))
+            isBoosting = false
+        end
+    end
+    tool.Activated:Connect(activateSpeedBoost)
+]]
+
+
+-- [[ MASTER GUI FABRICATION ]]
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
@@ -9,43 +199,32 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
--- Local player
 local LocalPlayer = Players.LocalPlayer
-local VERSION = "1.9.0"
+local VERSION = "2.0"
 
--- Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CyberTeleport"
+screenGui.Name = "CyberMasterControl"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Create Frame (Expanded for third button)
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 220, 0, 250) -- Increased height again
-frame.Position = UDim2.new(0.5, -110, 0.5, -125) -- Readjusted for center
+frame.Size = UDim2.new(0, 220, 0, 320) -- Expanded for 5 buttons
+frame.Position = UDim2.new(0.5, -110, 0.5, -160) -- Readjusted for center
 frame.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
 frame.BorderSizePixel = 2
 frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 frame.Parent = screenGui
 frame.Active = true
 
--- Title Label
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 25)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(60,0,0)
-title.BackgroundTransparency = 0.5
-title.TextColor3 = Color3.fromRGB(255, 0, 0)
-title.Text = " [FREEDOM] Teleport v" .. VERSION
-title.Font = Enum.Font.Code
-title.TextSize = 14
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = frame
-title.Active = true
+title.Size = UDim2.new(1, 0, 0, 25); title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(60,0,0); title.BackgroundTransparency = 0.5
+title.TextColor3 = Color3.fromRGB(255, 0, 0); title.Text = " [FREEDOM] Master Control v" .. VERSION
+title.Font = Enum.Font.Code; title.TextSize = 14; title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame; title.Active = true
 
--- ROBUST DRAGGING LOGIC
 local function makeDraggable(guiObject, dragHandle)
-    local dragging = false; local dragInput = nil; local dragStart = nil; local startPos = nil
+    local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
     dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging, dragInput, dragStart, startPos = true, input, input.Position, guiObject.Position
@@ -61,51 +240,57 @@ local function makeDraggable(guiObject, dragHandle)
 end
 makeDraggable(frame, title)
 
--- Dropdown Button
 local dropdownButton = Instance.new("TextButton")
 dropdownButton.Size = UDim2.new(0, 200, 0, 30); dropdownButton.Position = UDim2.new(0, 10, 0, 30)
 dropdownButton.BackgroundColor3 = Color3.fromRGB(50, 0, 0); dropdownButton.TextColor3 = Color3.fromRGB(255, 0, 0)
 dropdownButton.Text = "Select Target"; dropdownButton.Font = Enum.Font.Code; dropdownButton.TextSize = 14
 dropdownButton.Parent = frame
 
--- Player List
 local playerList = Instance.new("ScrollingFrame")
-playerList.Size = UDim2.new(0, 200, 0, 100); playerList.Position = UDim2.new(0, 10, 0, 65)
+playerList.Size = UDim2.new(0, 200, 0, 75); playerList.Position = UDim2.new(0, 10, 0, 65)
 playerList.BackgroundColor3 = Color3.fromRGB(30, 0, 0); playerList.BorderColor3 = Color3.fromRGB(255, 0, 0)
 playerList.Visible = false; playerList.CanvasSize = UDim2.new(0, 0, 0, 0); playerList.Parent = frame
 local listLayout = Instance.new("UIListLayout"); listLayout.Padding = UDim.new(0, 5); listLayout.Parent = playerList
 
--- [[ NEW ]] AK-47 Button
+-- Button Positioning & Creation
+local buttonYStart = 145
+local buttonYIncrement = 35
+
+local speedButton = Instance.new("TextButton")
+speedButton.Name = "SpeedButton"
+speedButton.Size = UDim2.new(0, 200, 0, 30); speedButton.Position = UDim2.new(0, 10, 0, buttonYStart)
+speedButton.BackgroundColor3 = Color3.fromRGB(0, 80, 150); speedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedButton.Text = "Get Speed Tool"; speedButton.Font = Enum.Font.Code; speedButton.TextSize = 14
+speedButton.Parent = frame
+
+local spikeButton = Instance.new("TextButton")
+spikeButton.Name = "SpikeButton"
+spikeButton.Size = UDim2.new(0, 200, 0, 30); spikeButton.Position = UDim2.new(0, 10, 0, buttonYStart + buttonYIncrement)
+spikeButton.BackgroundColor3 = Color3.fromRGB(80, 0, 150); spikeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+spikeButton.Text = "Get Spike Tool"; spikeButton.Font = Enum.Font.Code; spikeButton.TextSize = 14
+spikeButton.Parent = frame
+
 local ak47Button = Instance.new("TextButton")
-ak47Button.Size = UDim2.new(0, 200, 0, 30)
-ak47Button.Position = UDim2.new(0, 10, 0, 140) -- Top-most action
-ak47Button.BackgroundColor3 = Color3.fromRGB(80, 80, 80) -- Neutral gray
-ak47Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-ak47Button.Text = "Get AK-47"
-ak47Button.Font = Enum.Font.Code; ak47Button.TextSize = 14
+ak47Button.Name = "AK47Button"
+ak47Button.Size = UDim2.new(0, 200, 0, 30); ak47Button.Position = UDim2.new(0, 10, 0, buttonYStart + (buttonYIncrement * 2))
+ak47Button.BackgroundColor3 = Color3.fromRGB(80, 80, 80); ak47Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+ak47Button.Text = "Get AK-47"; ak47Button.Font = Enum.Font.Code; ak47Button.TextSize = 14
 ak47Button.Parent = frame
 
--- Clone Button (Repositioned)
 local cloneButton = Instance.new("TextButton")
-cloneButton.Size = UDim2.new(0, 200, 0, 30)
-cloneButton.Position = UDim2.new(0, 10, 0, 175) -- Middle action
-cloneButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-cloneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-cloneButton.Text = "Clone"
-cloneButton.Font = Enum.Font.Code; cloneButton.TextSize = 14
+cloneButton.Name = "CloneButton"
+cloneButton.Size = UDim2.new(0, 200, 0, 30); cloneButton.Position = UDim2.new(0, 10, 0, buttonYStart + (buttonYIncrement * 3))
+cloneButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0); cloneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+cloneButton.Text = "Clone"; cloneButton.Font = Enum.Font.Code; cloneButton.TextSize = 14
 cloneButton.Parent = frame
 
--- Teleport Button (Repositioned)
 local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.new(0, 200, 0, 30)
-teleportButton.Position = UDim2.new(0, 10, 0, 210) -- Bottom action
-teleportButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportButton.Text = "Engage Teleport!"
-teleportButton.Font = Enum.Font.Code; teleportButton.TextSize = 14
+teleportButton.Name = "TeleportButton"
+teleportButton.Size = UDim2.new(0, 200, 0, 30); teleportButton.Position = UDim2.new(0, 10, 0, buttonYStart + (buttonYIncrement * 4))
+teleportButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0); teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.Text = "Engage Teleport!"; teleportButton.Font = Enum.Font.Code; teleportButton.TextSize = 14
 teleportButton.Parent = frame
 
--- Close Button
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 20, 0, 20); closeButton.Position = UDim2.new(1, -25, 0, 3)
 closeButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0); closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -113,16 +298,12 @@ closeButton.Text = "X"; closeButton.Font = Enum.Font.Code; closeButton.TextSize 
 closeButton.Parent = frame
 closeButton.MouseButton1Click:Connect(function() screenGui:Destroy() end)
 
--- Keybind Toggle (RightAlt)
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.RightAlt then screenGui.Enabled = not screenGui.Enabled end
-end)
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent) if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.RightAlt then screenGui.Enabled = not screenGui.Enabled end end)
 
-local teleportSound = Instance.new("Sound"); teleportSound.SoundId = "rbxassetid://130833273"; teleportSound.Volume = 0.6; teleportSound.Parent = frame
-local selectedPlayer = nil; local onCooldown = false; local COOLDOWN_DURATION = 3
-
+local selectedPlayer, onCooldown, COOLDOWN_DURATION = nil, false, 3
 local function sendNotification(title, text) StarterGui:SetCore("SendNotification", { Title = title, Text = text, Duration = 4, Button1 = "Dismiss" }) end
 
+-- GUI CORE FUNCTIONS
 local function updatePlayerList()
     for _, child in pairs(playerList:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end; local count = 0
     for _, player in pairs(Players:GetPlayers()) do
@@ -138,38 +319,49 @@ local function updatePlayerList()
 end
 
 local function teleportToPlayer()
-    if onCooldown then sendNotification("System Error", "Teleport drive recharging. Stand by."); return; end
+    if onCooldown then sendNotification("System Error", "Teleport drive recharging."); return; end
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then sendNotification("System Error", "User character integrity compromised."); return; end
     local targetFound = false; if selectedPlayer then for _, p in pairs(Players:GetPlayers()) do if p == selectedPlayer then targetFound = true; break; end end end
-    if not targetFound then sendNotification("Targeting Error", "Selected target is no longer on the grid."); return; end
+    if not targetFound then sendNotification("Targeting Error", "Selected target not on grid."); return; end
     if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        onCooldown = true; teleportSound:Play(); local originalColor = teleportButton.BackgroundColor3; teleportButton.Text = "Recharging..."
+        onCooldown = true; local originalColor = teleportButton.BackgroundColor3; teleportButton.Text = "Recharging..."
         TweenService:Create(teleportButton, TweenInfo.new(COOLDOWN_DURATION), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
         local targetCFrame = selectedPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 5, -3)
-        TweenService:Create(LocalPlayer.Character.HumanoidRootPart, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {CFrame = targetCFrame}):Play()
+        TweenService:Create(LocalPlayer.Character.HumanoidRootPart, TweenInfo.new(0.3), {CFrame = targetCFrame}):Play()
         wait(COOLDOWN_DURATION); onCooldown = false; teleportButton.BackgroundColor3 = originalColor; teleportButton.Text = "Engage Teleport!"
-    else sendNotification("Targeting Error", "Target character non-existent or compromised.") end
+    else sendNotification("Targeting Error", "Target character compromised.") end
 end
 
 local function executeCloneModule()
-    local success, err = pcall(function() loadstring(game:GetObjects('rbxassetid://7339698872')[1].Source)() end)
-    if not success then sendNotification("Clone Module Failure", "Could not execute asset. Details: " .. tostring(err)) end
+    local s, e = pcall(function() loadstring(game:GetObjects('rbxassetid://7339698872')[1].Source)() end)
+    if not s then sendNotification("Module Failure", "Could not execute Clone asset.") end
 end
 
--- [[ NEW ]] AK-47 Module Function
 local function executeAk47Module()
-    local success, err = pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/sinret/rbxscript.com-scripts-reuploads-/main/ak47", true))() end)
-    if not success then sendNotification("AK-47 Module Failure", "Could not execute asset. Details: " .. tostring(err)) end
+    local s, e = pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/sinret/rbxscript.com-scripts-reuploads-/main/ak47", true))() end)
+    if not s then sendNotification("Module Failure", "Could not execute AK-47 asset.") end
 end
+
+local function giveSpeedTool()
+    local s, e = pcall(loadstring(speedToolScript))
+    if not s then sendNotification("Fabrication Error", "Could not create Speed Tool.") end
+end
+
+local function giveSpikeTool()
+    local s, e = pcall(loadstring(spikeToolScript))
+    if not s then sendNotification("Fabrication Error", "Could not create Spike Tool.") end
+end
+
 
 -- Connect Events
 dropdownButton.MouseButton1Click:Connect(function() playerList.Visible = not playerList.Visible; if playerList.Visible then updatePlayerList() end end)
 teleportButton.MouseButton1Click:Connect(teleportToPlayer)
 cloneButton.MouseButton1Click:Connect(executeCloneModule)
-ak47Button.MouseButton1Click:Connect(executeAk47Module) -- Connect new button
+ak47Button.MouseButton1Click:Connect(executeAk47Module)
+speedButton.MouseButton1Click:Connect(giveSpeedTool)
+spikeButton.MouseButton1Click:Connect(giveSpikeTool)
 Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(function(player) if player == selectedPlayer then selectedPlayer, dropdownButton.Text = nil, "Select Target"; end; updatePlayerList(); end)
 
--- Initial Setup
 updatePlayerList()
-sendNotification("[FREEDOM] System Online", "CyberTeleport v" .. VERSION .. " ready for engagement.")
+sendNotification("[FREEDOM] System Online", "Master Control Unit v" .. VERSION .. " engaged.")
